@@ -232,7 +232,8 @@ gen perfusion_xclamp_ny=1 if perfusion_xclamp_runs==0
 replace perfusion_xclamp_ny=0 if perfusion_xclamp_runs>0 & ~missing(perfusion_xclamp_runs)
 
 // Convert blood products used in theatre from mL to mL/kg
-gen perfusion_wb_kg=perfusion_wb/dem_weight if perfusion_wb>0  // red blood cells
+gen perfusion_rbc_kg=perfusion_rbc/dem_weight if perfusion_rbc>0  // red blood cells
+gen perfusion_wb_kg=perfusion_wb/dem_weight if perfusion_wb>0  // whole blood
 gen perfusion_plt_kg=perfusion_plt/dem_weight if perfusion_plt>0  // platelets
 gen perfusion_ffp_kg=perfusion_ffp/dem_weight if perfusion_ffp>0  // fresh frozen plasma
 gen perfusion_cryo_kg=perfusion_cryo/dem_weight if perfusion_cryo>0  // cryoprecipitate

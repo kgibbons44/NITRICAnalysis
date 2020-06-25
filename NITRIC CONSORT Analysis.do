@@ -1,4 +1,7 @@
-/*** Analysis of NITRIC Screening Dataset to generate figures for CONSORT diagram ***/
+/**** NITRIC DATA TRANSFORMATION ****/
+/**** Prepared by: Kristen Gibbons ****/
+/**** Date initialised: 12/05/2020 ****/
+/**** Purpose: Transformation of NITRIC data for analysis ****/
 
 // Number of infants screened for eligibility
 count if screening_dt~=.

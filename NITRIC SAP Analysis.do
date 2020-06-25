@@ -1,3 +1,8 @@
+/**** NITRIC DATA ANALYSIS ****/
+/**** Prepared by: Kristen Gibbons ****/
+/**** Date initialised: 12/05/2020 ****/
+/**** Purpose: Analysis of NITRIC data as per SAP ****/
+
 * Only keep those with a randomisation group
 tab rand_group, m
 drop if missing(rand_group)
@@ -8,7 +13,6 @@ tab rand_group
 // Age at randomisation - continuous
 hist rand_age_days
 qnorm rand_age_days
-tabstat rand_age_days, by(rand_group) stats(n mean sd min max q iqr)
 tabstat rand_age_weeks, by(rand_group) stats(n mean sd min max q iqr)
 
 // Age at randomisation - stratification group
@@ -38,65 +42,11 @@ tab rand_pathophys rand_group, col
 tab presurg_bypass rand_group, col m
 tab presurg_bypass rand_group, col
 
-// CHD: tetralogy of fallot
-tab presurg_chdtype___1 rand_group, col m
-
-// CHD: pulmonary stenosis
-tab presurg_chdtype___10 rand_group, col m
-
-// CHD: pulmonary atresia
-tab presurg_chdtype___11 rand_group, col m
-
-// CHD: other right-sided lesions
-
-// CHG: total righ side lesions
-
-// CHD: hypoplastic aortic arch
-tab presurg_chdtype___5 rand_group, col m
-
-// CHD: HLHS
-tab presurg_chdtype___7 rand_group, col m
-
-// CHD: mitral stenosis/atresia
-tab presurg_chdtype___8 rand_group, col m
-
-// CHD: aortic stenosis/atresia
-tab presurg_chdtype___6 rand_group, col m
-
-// CHD: other left-sided lesions
-
-// CHD: total left-sided lesions
-
-// CHD: ASD
-tab presurg_chdtype___3 rand_group, col m
-
-// CHD: VSD
-tab presurg_chdtype___2 rand_group, col m
-
-// CHD: AVSD
-tab presurg_chdtype___4 rand_group, col m
-
-// CHD: truncus
-
-// CHD: TGA
-tab presurg_chdtype___12 rand_group, col m
-
-// CHD: other shunt lesions
-
-// CHD: total shunt lesions
-
-// CHD group
-gen presurg_chdtype_any=0
-foreach i of numlist 1/15 {
-	tab presurg_chdtype___`i' rand_group, col m
-	tab presurg_chdtype___`i' rand_group, col
-	replace presurg_chdtype_any=presurg_chdtype_any+1 if presurg_chdtype___`i'==1
+// Congenital heart disease group
+foreach i of numlist 1/20 {
+	tab presurg_chdtype_group___`i' rand_group, col m
+	tab presurg_chdtype_group___`i' rand_group, col
 }
-replace presurg_chdtype_any=presurg_chdtype_any+1 if presurg_chdtype___88==1
-tab presurg_chdtype___88 rand_group, col m
-tab presurg_chdtype___88 rand_group, col
-tab presurg_chdtype_other rand_group, col
-tab presurg_chdtype_any rand_group, col m
 
 // PICU inpatient prior to surgery
 tab presurg_picu rand_group, col m
@@ -180,9 +130,10 @@ tabstat presurg_popc if presurg_popc~=7, by(rand_group) stats(n mean sd min max 
 // Congenital syndrome
 tab presurg_syndrome rand_group, col m
 tab presurg_syndrome rand_group, col
-tab presurg_syndrome_list rand_group, col chi exact m
-tab presurg_syndrome_list rand_group if presurg_syndrome==1, col chi exact m
-tab presurg_syndrome_other rand_group if presurg_syndrome_list==4, col
+foreach i of numlist 1/6 {
+	tab presurg_syndrome_group___`i' rand_group, col m
+	tab presurg_syndrome_group___`i' rand_group, col
+}
 
 // Country of hospital
 tab hosp_country rand_group, col m
@@ -274,11 +225,8 @@ tab perfusion_muf_scuf___2 rand_group, col chi exact
 prtest perfusion_muf_scuf___2, by(rand_group)
 
 // Red blood cells
-count if perfusion_rbc==0
-gen perfusion_rbc_kg=perfusion_rbc/dem_weight if perfusion_rbc>0
 hist perfusion_rbc_kg
 qnorm perfusion_rbc_kg
-count if missing(perfusion_rbc_kg)
 tabstat perfusion_rbc_kg, by(rand_group) stats(n mean sd min max q iqr)
 cendif perfusion_rbc_kg, by(rand_group)
 
@@ -457,22 +405,32 @@ foreach v of varlist `outcomes_cont' {
 	hist `v'
 	qnorm `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	
-	* Unadjusted p-value
-	ttest `v', by(rand_group)
-	ranksum `v', by(rand_group)
-	
+		
 	* Primary analysis and sensitivity analyses
 	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 	
 	* Subgroup analysis: age group <6 weeks
 	preserve
 	keep if rand_age==1
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	ranksum `v', by(rand_group)
 	restore
 
 	* Subgroup analysis: age group >=6 weeks
@@ -480,20 +438,33 @@ foreach v of varlist `outcomes_cont' {
 	keep if rand_age==2
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	ranksum `v', by(rand_group)
 	restore
 	
 	* Subgroup analysis: age group - interaction
 	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 	
 	* Physiology - univentricular
 	preserve
 	keep if rand_pathophys==1
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	ranksum `v', by(rand_group)
 	restore
 
 	* Physiology - biventricular
@@ -501,65 +472,133 @@ foreach v of varlist `outcomes_cont' {
 	keep if rand_pathophys==2
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	ranksum `v', by(rand_group)
 	restore
 
 	* Physiology - interaction
 	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 
 }
 
 // Analyse binary outcomes
 foreach v of varlist `outcomes_binary' {
 
-	* Descriptive statistics and unadjusted p-value
-	tab `v' rand_group, m col exact
-	tab `v' rand_group, col exact
+	* Descriptive statistics
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 	
 	* Primary analysis and sensitivity analyses
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	
 	* Subgroup analysis: age group <6 weeks
 	preserve
 	keep if rand_age==1
-	tab `v' rand_group, m col exact
-	tab `v' rand_group, col exact
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 	restore
 
 	* Subgroup analysis: age group >=6 weeks
 	preserve
 	keep if rand_age==2
-	tab `v' rand_group, m col exact
-	tab `v' rand_group, col exact
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 	restore
 	
 	* Subgroup analysis: age group - interaction
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	
 	* Physiology - univentricular
 	preserve
 	keep if rand_pathophys==1
-	tab `v' rand_group, m col exact
-	tab `v' rand_group, col exact
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 	restore
 
 	* Physiology - biventricular
 	preserve
 	keep if rand_pathophys==2
-	tab `v' rand_group, m col exact
-	tab `v' rand_group, col exact
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 	restore
 
 	* Physiology - interaction
-	xi: melogit picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:, or
-	xi: melogit picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, or
-	xi: melogit picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:, or
+	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
+	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
+	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 
 }
 
@@ -570,22 +609,36 @@ foreach v of varlist `outcomes_surv' {
 	hist `v'
 	qnorm `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	
-	* Unadjusted p-value
-	ranksum `v', by(rand_group)
-	
+		
 	* Primary analysis and sensitivity analyses
-	stset `v', `v'_event
+	stset `v', failure(`v'_event)
 	xi: mestreg b(1).rand_group b(2).rand_pathophys b(2).rand_age || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 	xi: mestreg b(1).rand_group b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 	xi: mestreg b(1).rand_group b(2).rand_pathophys b(2).rand_age surg_rachs || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 	
 	* Subgroup analysis: age group <6 weeks
 	preserve
 	keep if rand_age==1
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	ranksum `v', by(rand_group)
 	restore
 
 	* Subgroup analysis: age group >=6 weeks
@@ -593,20 +646,36 @@ foreach v of varlist `outcomes_surv' {
 	keep if rand_age==2
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	ranksum `v', by(rand_group)
 	restore
 	
 	* Subgroup analysis: age group - interaction
 	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 	
 	* Physiology - univentricular
 	preserve
 	keep if rand_pathophys==1
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	ranksum `v', by(rand_group)
 	restore
 
 	* Physiology - biventricular
@@ -614,13 +683,30 @@ foreach v of varlist `outcomes_surv' {
 	keep if rand_pathophys==2
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
-	ranksum `v', by(rand_group)
 	restore
 
 	* Physiology - interaction
 	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 
 }
 
@@ -629,52 +715,106 @@ local aki_timepoints "picu_aki0 picu_aki24 picu_aki48"
 foreach v of varlist `aki_timepoints' {
 
 	* Descriptive statistics and unadjusted p-value
-	tab `v' rand_group, m col exact
-	tab `v' rand_group, col exact
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 
 	** Primary analysis
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 
 	** Subgroup analysis
 	* Age group - <6 weeks
 	preserve
 	keep if rand_age==1
-	tab `v' rand_group, m col chi exact
-	tab `v' rand_group, col chi exact
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 	restore
 
 	* Age group - >=6 weeks
 	preserve
 	keep if rand_age==2
-	tab `v' rand_group, m col chi exact
-	tab `v' rand_group, col chi exact
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 	restore
 
 	* Age group - interaction
 	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 
 	* Physiology - univentricular
 	preserve
 	keep if rand_pathophys==1
-	tab `v' rand_group, m col chi exact
-	tab `v' rand_group, col chi exact
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 	restore
 
 	* Physiology - biventricular
 	preserve
 	keep if rand_pathophys==2
-	tab `v' rand_group, m col chi exact
-	tab `v' rand_group, col chi exact
+	tab `v' rand_group, m col
+	tab `v' rand_group, col
 	restore
 
 	* Physiology - interaction
 	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	
 }
 

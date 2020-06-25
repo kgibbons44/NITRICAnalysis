@@ -1,5 +1,7 @@
-/**** NITRIC STUDY ****/
-/**** Calculation of study outcomes ****/
+/**** NITRIC OUTCOME CALCULATIONS ****/
+/**** Prepared by: Kristen Gibbons ****/
+/**** Date initialised: 12/05/2020 ****/
+/**** Purpose: Calculation of NITRIC outcomes ****/
 
 /* Calculate variables used in outcome calculations */
 
