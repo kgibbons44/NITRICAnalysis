@@ -47,6 +47,11 @@ tab redcap_event_name ae_sae, m
 // Keep variables
 describe record_id redcap_repeat_instance ae_sae-adverse_events_manag_v_4, full
 keep record_id redcap_repeat_instance ae_sae-adverse_events_manag_v_4
+// Save a version in long format
+preserve
+sort record_id
+save "OutputData\ae_long0.dta", replace
+restore
 // Reshape the data
 reshape wide ae_sae-adverse_events_manag_v_4, i(record_id) j(redcap_repeat_instance)
 gen ae_indata=1
@@ -257,5 +262,17 @@ gen prop_cpb_no=perfusion_runs_total/perfusion_cpb_total
 
 // Calculate change in methaemoglobin level before and after CPB
 gen meth_change=perfusion_methb_post-perfusion_methb_pre
+
+// Determine if any AEs occurred for a patient
+gen ae_any=0
+foreach v of varlist ae_sae* {
+	replace ae_any=1 if `v'==1
+}
+
+// Determine if any AE that was possibly, probably or definitively related occurred for a patient
+gen ae_related_any=0
+foreach v of varlist ae_druga* {
+	replace ae_any=1 if `v'==3 | `v'==4 | `v'==5 
+}
 
 save "NITRIC.dta", replace

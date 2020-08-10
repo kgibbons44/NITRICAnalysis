@@ -395,7 +395,7 @@ restore
 
 // Create variable lists for remaining outcome variables
 local outcomes_cont "mment_vent_dur dur_chestopen mment_vent_nohrs mment_vent_rrthrs picu_pelod2_* picu_troponin* picu_creatinine*"
-local outcomes_binary "picu_lcos_any ecls_48hr death_28day comp_outcome mment_vent_no mment_rrt_pd_crrt"
+local outcomes_binary "picu_lcos_any ecls_48hr death_28day comp_outcome mment_vent_no mment_rrt_pd_crrt ae_any ae_related_any"
 local outcomes_surv "los_picu los_hosp"
 
 // Analyse continuous outcomes
@@ -425,6 +425,12 @@ foreach v of varlist `outcomes_cont' {
 	predict r, residuals
 	scatter r pr
 	drop pr r
+	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 	
 	* Subgroup analysis: age group <6 weeks
 	preserve
@@ -441,19 +447,25 @@ foreach v of varlist `outcomes_cont' {
 	restore
 	
 	* Subgroup analysis: age group - interaction
-	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys || site:
+	xi: meglm `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys || site:
 	* Test assumptions
 	predict pr, xb
 	predict r, residuals
 	scatter r pr
 	drop pr r
-	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:
+	xi: meglm `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:
 	* Test assumptions
 	predict pr, xb
 	predict r, residuals
 	scatter r pr
 	drop pr r
-	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:
+	xi: meglm `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys surg_rachs || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
+	xi: meglm `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:
 	* Test assumptions
 	predict pr, xb
 	predict r, residuals
@@ -493,6 +505,12 @@ foreach v of varlist `outcomes_cont' {
 	predict r, residuals
 	scatter r pr
 	drop pr r
+	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
 
 }
 
@@ -525,6 +543,13 @@ foreach v of varlist `outcomes_binary' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
+	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	
 	* Subgroup analysis: age group <6 weeks
 	preserve
@@ -541,21 +566,28 @@ foreach v of varlist `outcomes_binary' {
 	restore
 	
 	* Subgroup analysis: age group - interaction
-	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys || site:, or
+	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
+	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
+	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
+	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
@@ -599,6 +631,13 @@ foreach v of varlist `outcomes_binary' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
+	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 
 }
 
@@ -627,6 +666,13 @@ foreach v of varlist `outcomes_surv' {
 	scatter lnls log_`v'
 	drop s lnls log_`v'
 	xi: mestreg b(1).rand_group b(2).rand_pathophys b(2).rand_age surg_rachs || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
+	xi: mestreg b(1).rand_group b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, distribution(weibull)
 	* Test assumptions
 	predict s, surv
 	gen lnls=log(-1*log(s))
@@ -670,6 +716,13 @@ foreach v of varlist `outcomes_surv' {
 	gen log_`v'=log(`v')
 	scatter lnls log_`v'
 	drop s lnls log_`v'
+	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 	
 	* Physiology - univentricular
 	preserve
@@ -707,6 +760,13 @@ foreach v of varlist `outcomes_surv' {
 	gen log_`v'=log(`v')
 	scatter lnls log_`v'
 	drop s lnls log_`v'
+	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, distribution(weibull)
+	* Test assumptions
+	predict s, surv
+	gen lnls=log(-1*log(s))
+	gen log_`v'=log(`v')
+	scatter lnls log_`v'
+	drop s lnls log_`v'
 
 }
 
@@ -734,6 +794,13 @@ foreach v of varlist `aki_timepoints' {
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
 	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
+	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
@@ -778,6 +845,13 @@ foreach v of varlist `aki_timepoints' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
+	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 
 	* Physiology - univentricular
 	preserve
@@ -815,8 +889,26 @@ foreach v of varlist `aki_timepoints' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
+	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, or
+	* Test assumptions
+	linktest, nolog
+	predict p
+	predict devr, dev
+	scatter devr p, yline(0) mlabel(record_id)
+	drop p devr
 	
 }
+
+/*** Supplementary Material: Adverse Events ***/
+preserve
+use "OutputData\ae_long0.dta", clear
+tab ae_druga rand_group, m col
+tab ae_druga rand_group, col
+restore
+
+// Any AE/SAE
+tab ae_any rand_group, m col
+tab ae_any rand_group, col
 
 /*** SAP: Figure 3 ***/
 * Composite figure of: a) proportion of patients with LCOS, 
