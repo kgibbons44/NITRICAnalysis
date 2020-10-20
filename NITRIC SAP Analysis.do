@@ -8,6 +8,11 @@ tab rand_group, m
 drop if missing(rand_group)
 tab rand_group
 
+* Only keep those who underwent CPB
+tab rand_group if perfusion_cpb1_start==.
+drop if perfusion_cpb1_start==.
+sort rand_dt
+
 /*** SAP Table 1: Demographics ***/
 
 // Age at randomisation - continuous
@@ -43,9 +48,9 @@ tab presurg_bypass rand_group, col m
 tab presurg_bypass rand_group, col
 
 // Congenital heart disease group
-foreach i of numlist 1/20 {
-	tab presurg_chdtype_group___`i' rand_group, col m
-	tab presurg_chdtype_group___`i' rand_group, col
+foreach i of numlist 1/15 {
+	tab presurg_chdtype___`i' rand_group, col m
+	tab presurg_chdtype___`i' rand_group, col
 }
 
 // PICU inpatient prior to surgery
@@ -130,10 +135,10 @@ tabstat presurg_popc if presurg_popc~=7, by(rand_group) stats(n mean sd min max 
 // Congenital syndrome
 tab presurg_syndrome rand_group, col m
 tab presurg_syndrome rand_group, col
-foreach i of numlist 1/6 {
+/*foreach i of numlist 1/6 {
 	tab presurg_syndrome_group___`i' rand_group, col m
 	tab presurg_syndrome_group___`i' rand_group, col
-}
+}*/
 
 // Country of hospital
 tab hosp_country rand_group, col m
@@ -307,6 +312,8 @@ tabstat vfd, by(rand_group) stats(n mean sd min max q iqr)
 ranksum vfd, by(rand_group)
 
 // Primary analysis
+xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
+* Generate the graph
 gen days=vent_dur
 replace days=hours(outcome_death-perfusion_cpb1_start)/24 if ~missing(outcome_death) & ~missing(perfusion_cpb1_start) & outcome_death<=post28daysurg_dt
 gen outcome_cc=0 if vent_dur==28 & death_28day==0 // not extubated and didn't die
@@ -340,17 +347,20 @@ ranksum vfd, by(rand_group)
 restore
 
 * Age group - interaction
-xi: stcrreg b(1).rand_group##b(2).rand_age b(2).rand_pathophys, compete(outcome_cc=2)
+xi: qreg vfd b(1).rand_group##b(2).rand_age b(2).rand_pathophys b(2).site
+xi: stcrreg b(1).rand_group##b(2).rand_age b(2).rand_pathophys, compete(outcome_cc=2) // needed for the graph
 preserve
 keep if rand_age==1
-xi: stcrreg b(1).rand_group b(2).rand_pathophys, compete(outcome_cc=2)
+xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
+xi: stcrreg b(1).rand_group b(2).rand_pathophys, compete(outcome_cc=2) // needed for the graph
 stcurve, cif at1(rand_group=1) at2(rand_group=2) saving(Figures\\vfd_age1,replace) title("") scheme(s1mono) ///
 		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
 		 ytitle("Probability of extubation") lpattern(dash)
 restore
 preserve
 keep if rand_age==2
-xi: stcrreg b(1).rand_group b(2).rand_pathophys, compete(outcome_cc=2)
+xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
+xi: stcrreg b(1).rand_group b(2).rand_pathophys, compete(outcome_cc=2) // needed for the graph
 stcurve, cif at1(rand_group=1) at2(rand_group=2) saving(Figures\\vfd_age2,replace) title("") scheme(s1mono) ///
 		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
 		 ytitle("Probability of extubation") lpattern(dash)
@@ -375,17 +385,20 @@ ranksum vfd, by(rand_group)
 restore
 
 * Physiology - interaction
-xi: stcrreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age, compete(outcome_cc=2)
+xi: qreg vfd b(1).rand_group##b(2).rand_pathophys b(2).rand_age b(2).site
+xi: stcrreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age, compete(outcome_cc=2) // needed for the graph
 preserve
 keep if rand_pathophys==1
-xi: stcrreg b(1).rand_group b(2).rand_age, compete(outcome_cc=2)
+xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
+xi: stcrreg b(1).rand_group b(2).rand_age, compete(outcome_cc=2) // needed for the graph
 stcurve, cif at1(rand_group=1) at2(rand_group=2) saving(Figures\\vfd_phys1,replace) title("") scheme(s1mono) ///
 		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
 		 ytitle("Probability of extubation") lpattern(dash)
 restore
 preserve
 keep if rand_pathophys==2
-xi: stcrreg b(1).rand_group b(2).rand_age, compete(outcome_cc=2)
+xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
+xi: stcrreg b(1).rand_group b(2).rand_age, compete(outcome_cc=2) // needed for the graph
 stcurve, cif at1(rand_group=1) at2(rand_group=2) saving(Figures\\vfd_phys2,replace) title("") scheme(s1mono) ///
 		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
 		 ytitle("Probability of extubation") lpattern(dash)
@@ -406,26 +419,14 @@ foreach v of varlist `outcomes_cont' {
 	qnorm `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
 		
-	* Primary analysis and sensitivity analyses
+	* Primary analysis and sensitivity analysis
 	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys || site:
 	* Test assumptions
 	predict pr, xb
 	predict r, residuals
 	scatter r pr
 	drop pr r
-	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:
-	* Test assumptions
-	predict pr, xb
-	predict r, residuals
-	scatter r pr
-	drop pr r
-	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:
-	* Test assumptions
-	predict pr, xb
-	predict r, residuals
-	scatter r pr
-	drop pr r
-	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:
+	xi: meglm `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:
 	* Test assumptions
 	predict pr, xb
 	predict r, residuals
@@ -453,19 +454,7 @@ foreach v of varlist `outcomes_cont' {
 	predict r, residuals
 	scatter r pr
 	drop pr r
-	xi: meglm `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:
-	* Test assumptions
-	predict pr, xb
-	predict r, residuals
-	scatter r pr
-	drop pr r
-	xi: meglm `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys surg_rachs || site:
-	* Test assumptions
-	predict pr, xb
-	predict r, residuals
-	scatter r pr
-	drop pr r
-	xi: meglm `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:
+	xi: meglm `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:
 	* Test assumptions
 	predict pr, xb
 	predict r, residuals
@@ -493,19 +482,7 @@ foreach v of varlist `outcomes_cont' {
 	predict r, residuals
 	scatter r pr
 	drop pr r
-	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:
-	* Test assumptions
-	predict pr, xb
-	predict r, residuals
-	scatter r pr
-	drop pr r
-	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:
-	* Test assumptions
-	predict pr, xb
-	predict r, residuals
-	scatter r pr
-	drop pr r
-	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:
+	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:
 	* Test assumptions
 	predict pr, xb
 	predict r, residuals
@@ -529,21 +506,7 @@ foreach v of varlist `outcomes_binary' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:, or
+	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
@@ -573,21 +536,7 @@ foreach v of varlist `outcomes_binary' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:, or
+	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
@@ -617,28 +566,14 @@ foreach v of varlist `outcomes_binary' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, or
+	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-
+	
 }
 
 // Analyse survival outcomes
@@ -658,21 +593,7 @@ foreach v of varlist `outcomes_surv' {
 	gen log_`v'=log(`v')
 	scatter lnls log_`v'
 	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, distribution(weibull)
-	* Test assumptions
-	predict s, surv
-	gen lnls=log(-1*log(s))
-	gen log_`v'=log(`v')
-	scatter lnls log_`v'
-	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group b(2).rand_pathophys b(2).rand_age surg_rachs || site:, distribution(weibull)
-	* Test assumptions
-	predict s, surv
-	gen lnls=log(-1*log(s))
-	gen log_`v'=log(`v')
-	scatter lnls log_`v'
-	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, distribution(weibull)
+	xi: mestreg b(1).rand_group b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, distribution(weibull)
 	* Test assumptions
 	predict s, surv
 	gen lnls=log(-1*log(s))
@@ -702,21 +623,7 @@ foreach v of varlist `outcomes_surv' {
 	gen log_`v'=log(`v')
 	scatter lnls log_`v'
 	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, distribution(weibull)
-	* Test assumptions
-	predict s, surv
-	gen lnls=log(-1*log(s))
-	gen log_`v'=log(`v')
-	scatter lnls log_`v'
-	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:, distribution(weibull)
-	* Test assumptions
-	predict s, surv
-	gen lnls=log(-1*log(s))
-	gen log_`v'=log(`v')
-	scatter lnls log_`v'
-	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, distribution(weibull)
+	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, distribution(weibull)
 	* Test assumptions
 	predict s, surv
 	gen lnls=log(-1*log(s))
@@ -746,21 +653,7 @@ foreach v of varlist `outcomes_surv' {
 	gen log_`v'=log(`v')
 	scatter lnls log_`v'
 	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, distribution(weibull)
-	* Test assumptions
-	predict s, surv
-	gen lnls=log(-1*log(s))
-	gen log_`v'=log(`v')
-	scatter lnls log_`v'
-	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:, distribution(weibull)
-	* Test assumptions
-	predict s, surv
-	gen lnls=log(-1*log(s))
-	gen log_`v'=log(`v')
-	scatter lnls log_`v'
-	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, distribution(weibull)
+	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, distribution(weibull)
 	* Test assumptions
 	predict s, surv
 	gen lnls=log(-1*log(s))
@@ -786,21 +679,7 @@ foreach v of varlist `aki_timepoints' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:, or
+	xi: melogit `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
@@ -831,21 +710,7 @@ foreach v of varlist `aki_timepoints' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys surg_rachs || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_prime_any || site:, or
+	xi: melogit `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
@@ -875,30 +740,29 @@ foreach v of varlist `aki_timepoints' {
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total || site:, or
+	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, or
 	* Test assumptions
 	linktest, nolog
 	predict p
 	predict devr, dev
 	scatter devr p, yline(0) mlabel(record_id)
 	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age surg_rachs || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	xi: melogit `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_prime_any || site:, or
-	* Test assumptions
-	linktest, nolog
-	predict p
-	predict devr, dev
-	scatter devr p, yline(0) mlabel(record_id)
-	drop p devr
-	
 }
 
+// Sensitivity analysis using multiple imputation for the primary outcome
+mi register imputed vfd
+mi impute chained (regress) vfd = rand_group site rand_pathophys rand_age, add(10) rseed(54321) savetrace(trace1,replace)
+
+* Re-run the primary analysis
+xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
+stset days, failure(outcome_cc=1)
+xi: stcrreg b(1).rand_group b(2).rand_age b(2).rand_pathophys, compete(outcome_cc=2) // needed for the graph
+matrix coeff_mi=e(b)
+mata : st_matrix("coeff_shr_mi", exp(st_matrix("coeff_mi")))
+stcurve, cif at1(rand_group=1) at2(rand_group=2) title("") scheme(s1mono) ///
+		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
+		 ytitle("Probability of extubation") lpattern(dash)
+		 
 /*** Supplementary Material: Adverse Events ***/
 preserve
 use "OutputData\ae_long0.dta", clear
