@@ -9,9 +9,12 @@ drop if missing(rand_group)
 tab rand_group
 
 * Only keep those who underwent CPB
-tab rand_group if perfusion_cpb1_start==.
-drop if perfusion_cpb1_start==.
+tab rand_group if perfusion_cpb_runs==. & perfusion_cpb_runs~=0
+drop if perfusion_cpb_runs==. & perfusion_cpb_runs~=0
 sort rand_dt
+
+* Remove the withdrawn patients
+drop if withdraw_data_use___1==1 | withdraw_data_use___2==1
 
 /*** SAP Table 1: Demographics ***/
 
@@ -48,9 +51,9 @@ tab presurg_bypass rand_group, col m
 tab presurg_bypass rand_group, col
 
 // Congenital heart disease group
-foreach i of numlist 1/15 {
-	tab presurg_chdtype___`i' rand_group, col m
-	tab presurg_chdtype___`i' rand_group, col
+foreach v of varlist presurg_chdtype_group__* presurg_chdgroup_rightside presurg_chdgroup_leftside presurg_chdgroup_shunt presurg_chdgroup_various {
+	tab `v' rand_group, col m
+	tab `v' rand_group, col
 }
 
 // PICU inpatient prior to surgery
@@ -135,10 +138,10 @@ tabstat presurg_popc if presurg_popc~=7, by(rand_group) stats(n mean sd min max 
 // Congenital syndrome
 tab presurg_syndrome rand_group, col m
 tab presurg_syndrome rand_group, col
-/*foreach i of numlist 1/6 {
-	tab presurg_syndrome_group___`i' rand_group, col m
-	tab presurg_syndrome_group___`i' rand_group, col
-}*/
+foreach v of varlist presurg_syndrome_group___* {
+	tab `v' rand_group, col m
+	tab `v' rand_group, col
+}
 
 // Country of hospital
 tab hosp_country rand_group, col m
@@ -304,6 +307,15 @@ tabstat meth_change, stats(n mean sd min max q iqr)
 restore
 
 /*** SAP Table 3: Comparison of primary and secondary outcomes per intention-to-treat analysis ***/
+
+// Randomly shuffle the two groups so that it is not known for the first pass of the analysis
+* Remove this portion of code for the final analysis
+rename rand_group rand_group_o
+scalar ran=runiform()
+quietly gen rand_group=rand_group_o if ran<0.5
+quietly replace rand_group=2 if rand_group==. & rand_group_o==1
+quietly replace rand_group=1 if rand_group==. & rand_group_o==2
+scalar drop ran
 
 // Primary outcome: ventilator-free days
 hist vfd

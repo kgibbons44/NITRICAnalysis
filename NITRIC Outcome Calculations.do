@@ -27,8 +27,8 @@ format post28daypicu_dt %tc
 
 /* Calculate the primary outcome variable: ventilator-free days from start of CPB */
 
-tab mment_vent
-tab mment_vent_events
+tab mment_vent, m
+tab mment_vent_events, m
 
 // Initial ventilation period between start of bypass and first extubation
 gen mment_vent_dur_initial=hours(mment_extub-perfusion_cpb1_start)/24 if mment_vent==1
@@ -45,7 +45,7 @@ foreach i of numlist 1/5 {
 	
 	// Calculate difference between start and stop times of ventilator episode
 	gen mment_vent_dur`i'=hours(mment_vent_stop`i'-mment_vent_start`i')/24 if ~missing(mment_vent_stop`i') & ~missing(mment_vent_start`i')
-	replace mment_vent_dur`i'=. if ( (rand_dt>mment_vent_start`i') | (rand_dt>mment_vent_stop`i') )& ~missing(mment_vent_dur`i')
+	count if ( (rand_dt>mment_vent_start`i') | (rand_dt>mment_vent_stop`i') )& ~missing(mment_vent_dur`i')
 	
 	// Calculate the duration of ventilation (hours) if less than 28 days post-randomisation and add to current total
 	replace mment_vent_dur`i'=0 if mment_vent_start`i'>post28daysurg_dt & ~missing(mment_vent_start`i') & ~missing(post28daysurg_dt)
@@ -203,12 +203,15 @@ foreach i of numlist 0(24)48 {
 
 	// Generate points for PaO2/FiO2 ratio - assign a value of 0 where no value
 	gen picu_bl_pao2_fio2_p`i'=0
-	replace picu_bl_pao2_fio2_p`i'=2 if (picu_pao2_`i'/picu_bga_fio2_`i')<=60 & picu_pao2_`i'~=. & picu_bga_fio2_`i'~=.
+	replace picu_bl_pao2_fio2_p`i'=2 if (picu_pao2_`i'/picu_bga_fio2_`i')<=60 & picu_pao2_paco2_unit==1 & picu_pao2_`i'~=. & picu_bga_fio2_`i'~=.
+    replace picu_bl_pao2_fio2_p`i'=2 if ((picu_pao2_`i'*7.50062)/picu_bga_fio2_`i')<=60 & picu_pao2_paco2_unit==2 & picu_pao2_`i'~=. & picu_bga_fio2_`i'~=.
 
 	// Generate points for PaCO2 - assign a value of 0 where no value
 	gen picu_bl_paco2_p`i'=0
-	replace picu_bl_paco2_p`i'=1 if picu_paco2_`i'>=59 & picu_paco2_`i'<95 & picu_paco2_`i'~=.
-	replace picu_bl_paco2_p`i'=3 if picu_paco2_`i'>=95 & picu_paco2_`i'~=.
+	replace picu_bl_paco2_p`i'=1 if picu_paco2_`i'>=59 & picu_paco2_`i'<95 & picu_pao2_paco2_unit==1 & picu_paco2_`i'~=.
+    replace picu_bl_paco2_p`i'=3 if picu_paco2_`i'>=95 & picu_pao2_paco2_unit==1 & picu_paco2_`i'~=.
+    replace picu_bl_paco2_p`i'=1 if picu_paco2_`i'*7.50062>=59 & picu_paco2_`i'*7.50062<95 & picu_pao2_paco2_unit==2 & picu_paco2_`i'~=.
+    replace picu_bl_paco2_p`i'=3 if picu_paco2_`i'*7.50062>=95 & picu_pao2_paco2_unit==2 & picu_paco2_`i'~=.
 
 	// Generate points for invasive ventilation - assign a value of 0 where no value
 	gen picu_iv_p`i'=0

@@ -30,7 +30,7 @@ foreach i of numlist 6/8 {
 }
 tab exclusion_other, m
 tab exclusion_other_comment
-replace exclusion_met=1 if exclusion_other==1
+replace exclusion_met=1 if exclusion_other==4
 tab exclusion_met, m
 
 // Number of infants who were eligible

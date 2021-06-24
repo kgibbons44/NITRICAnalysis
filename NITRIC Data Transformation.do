@@ -24,6 +24,20 @@ keep record_id redcap_event_name redcap_data_access_group rand_dt-presurgical_as
 gen preop_indata=1
 sort record_id
 save "OutputData\preop0.dta", replace
+/// Keep event: acute_sdv_arm_1 - SDV randomisation data, no repeats
+use "OutputData\nitric0.dta", clear
+tab redcap_event_name sdv_site_complete, m
+tab redcap_event_name sdv_site_complete
+keep if ( redcap_event_name == "acute_sdv_arm_1" & redcap_repeat_instrument=="" )
+keep if ( sdv_site_complete~=. )
+tab redcap_event_name sdv_site_complete, m
+tab redcap_event_name sdv_site_complete
+// Keep variables
+describe record_id redcap_event_name redcap_data_access_group sdv_pt_status-sdv_site_complete, full
+keep record_id redcap_event_name redcap_data_access_group sdv_pt_status-sdv_site_complete
+gen sdv_indata=1
+sort record_id
+save "OutputData\sdv0.dta", replace
 /// Keep event: acute_data_arm_1 - repeat observations, but keep only the first surgery
 use "OutputData\nitric0.dta", clear
 tab redcap_event_name presurgical_assessme_v_0, m
@@ -73,18 +87,24 @@ sort record_id
 save "OutputData\pd0.dta", replace
 /// Merge all the files together
 use "OutputData\preop0.dta", clear
-merge 1:1 record_id using "OutputData\acute0.dta"
+merge 1:1 record_id using "OutputData\sdv0.dta", update
 drop _merge
-merge 1:1 record_id using "OutputData\ae0.dta"
+merge 1:1 record_id using "OutputData\acute0.dta", update
 drop _merge
-merge 1:1 record_id using "OutputData\pd0.dta"
+merge 1:1 record_id using "OutputData\ae0.dta", update
+drop _merge
+merge 1:1 record_id using "OutputData\pd0.dta", update
 drop _merge
 save "NITRIC.dta", replace
+
+/* Merge on the data from the screening file */
+sort record_id
+merge 1:1 record_id using "NITRIC_Screening"
 
 /* Prepare the variables */
 
 // Set values of 4444, 5555, 9999 to missing for relevant variables 
-mvdecode *_lactate* picu_mbp_* *_creatinine* picu_pao2_* picu_bga_fio2_* picu_paco2_* ///
+mvdecode *_lactate* picu_mbp_* picu_gcs_* *_creatinine* picu_pao2_* picu_bga_fio2_* picu_paco2_* ///
 		 picu_wcc_* picu_platelets_* rand_age_days dem_weight surg_rachs ///
 		 perfusion_cpb_total perfusion_xclamp_total perfusion_cool_time perfusion_rbc ///
 		 perfusion_wb perfusion_plt perfusion_ffp perfusion_cryo picu_avsatdiff* ///
@@ -117,9 +137,12 @@ label values hosp_country hosp_country
 // Reverse the randomisation groups so that standard care is the reference group
 gen rand_group=1 if rand_random==2
 replace rand_group=2 if rand_random==1
+tab rand_group rand_group
 label define rand_group 1 "Standard Care" 2 "Nitric Oxide"
 label values rand_group rand_group
-tab rand_group rand_group
+// Add in the manual allocations
+replace rand_group=1 if rand_manual_allocation==2
+replace rand_group=2 if rand_manual_allocation==1
 
 // Convert age (days) to age (weeks)
 gen rand_age_weeks=rand_age_days/7
@@ -133,6 +156,21 @@ label values dem_ethnicity_gr dem_ethnicity_
 gen rand_to_post_picuadm=hours(picu_adm-rand_dt)
 hist rand_to_post_picuadm
 tabstat rand_to_post_picuadm, stats(n mean sd min max q iqr)
+
+// Collapse CHD type
+* Right-sided obstructive lesions
+gen presurg_chdgroup_rightside=1 if presurg_chdtype_group___16==1 | presurg_chdtype_group___5==1 | presurg_chdtype_group___12 | ///
+									presurg_chdtype_group___18 | presurg_chdtype_group___13
+* Left-sided obstructive lesions
+gen presurg_chdgroup_leftside=1 if  presurg_chdtype_group___3==1 | presurg_chdtype_group___8==1 | presurg_chdtype_group___7==1 | ///
+									presurg_chdtype_group___6==1 | presurg_chdtype_group___9==1
+* Shunt lesions
+gen presurg_chdgroup_shunt=1 if		presurg_chdtype_group___1==1 | presurg_chdtype_group___20==1 | presurg_chdtype_group___2==1 | ///
+									presurg_chdtype_group___19==1 | presurg_chdtype_group___17==1 | presurg_chdtype_group___11 | ///
+									presurg_chdtype_group___14==1
+* Various lesions
+gen presurg_chdgroup_various=1 if 	presurg_chdtype_group___4==1 | presurg_chdtype_group___15==1 | presurg_chdtype_group___10==1
+									
 
 // Collapse surgical procedures
 * Tetralogy repair 
