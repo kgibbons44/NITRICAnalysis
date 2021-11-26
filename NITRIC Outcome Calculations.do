@@ -91,10 +91,13 @@ replace comp_outcome=0 if picu_lcos_any==0 & ecls_48hr==0 & death_28day==0
 // Duration of time (hours) with chest open post-operatively
 * Definition: duration of time with chest open from PICU admission post-surgery, censored at 28 days
 * Including time spent with open chest in cases of emergency secondary reopening
-gen dur_chestopen=0 if mment_chestclose==0 & mment_chestopen==0
-replace dur_chestopen=hours(mment_chestclosure_dt-picu_adm) if ~missing(mment_chestclosure_dt) & ~missing(picu_adm)
+replace mment_chestclosure_dt=outcome_death if mment_chestclosure_dt==. & death_28day==1 & mment_chestclose==1
+replace mment_chestopen_dt_close=outcome_death if mment_chestopen_dt_close==. & death_28day==1 & mment_chestopen==1
+gen dur_chestopen=0
+replace dur_chestopen=hours(mment_chestclosure_dt-picu_adm) if ~missing(mment_chestclosure_dt) & ~missing(picu_adm) & mment_chestclose==1
 replace dur_chestopen=dur_chestopen+hours(mment_chestopen_dt_close-mment_chestopen_dt) if mment_chestopen==1 & mment_chestopen_dt_close<post28daysurg_dt & ~missing(mment_chestopen_dt_close) & ~missing(mment_chestopen_dt)
 replace dur_chestopen=dur_chestopen+hours(post28daysurg_dt-mment_chestopen_dt) if mment_chestopen==1 & mment_chestopen_dt_close>=post28daysurg_dt & ~missing(mment_chestopen_dt_close) & ~missing(mment_chestopen_dt)
+replace dur_chestopen=. if dur_chestopen==0 // only include chest open
 
 // Length of stay: PICU
 * Definition: length of stay from PICU admission post-surgery to PICU discharge, censored at 28 days
@@ -105,7 +108,7 @@ foreach i of numlist 1/3 {
 					 outcome_picu_readmit_dc`i'<post28daypicu_dt
 	replace los_picu=los_picu+hours(post28daypicu_dt-outcome_picu_readmit_adm`i')/24 ///
 					 if ~missing(outcome_picu_readmit_dc`i') & ~missing(outcome_picu_readmit_adm`i') & ///
-					 outcome_picu_readmit_dc`i'>=post28daypicu_dt
+					 outcome_picu_readmit_dc`i'>=post28daypicu_dt & outcome_picu_readmit_adm`i'<post28daypicu_dt
 }
 replace los_picu=28 if los_picu>28 & ~missing(outcome_picu_dc) & ~missing(picu_adm)
 gen los_picu_event=1 if los_picu<28 // censoring variable
@@ -262,6 +265,22 @@ foreach i of numlist 0(24)48 {
 	replace picu_aki`i'=3 if picu_creatinine`i'>=(59*3) & picu_creatinine`i'~=. & rand_age_days/(365.25/12)>=60 & rand_age_days/(365.25/12)<144 & rand_age_days~=.
 	replace picu_aki`i'=3 if picu_creatinine`i'>=(93*3) & picu_creatinine`i'~=. & rand_age_days/(365.25/12)>=144 & rand_age_days~=.
 
+}
+
+foreach v of varlist picu_aki0 picu_aki24 picu_aki48 {
+    gen `v'_yn=1 if `v'==1 | `v'==2 | `v'==3
+	replace `v'_yn=0 if `v'==0
+}
+
+// Troponin
+* Convert the sites to be on the same units (microgram/L)
+replace picu_troponin0=. if (picu_troponin0==555 | picu_troponin0==55555) & site==2 // incorrect RCHM values
+replace picu_troponin24=. if (picu_troponin24==555 | picu_troponin24==55555) & site==2 // incorrect RCHM values
+foreach v of varlist picu_troponin* {
+    replace `v'=`v'/1000 if site==5 // Starship: recorded in ng/L
+    replace `v'=`v'/1000 if site==4 // Perth: recorded in ng/L
+    replace `v'=`v'/1000 if site==3 // Westmead: recorded in ng/L
+	
 }
 
 save "NITRIC.dta", replace

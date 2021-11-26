@@ -6,12 +6,13 @@
 * Only keep those with a randomisation group
 tab rand_group, m
 drop if missing(rand_group)
-tab rand_group
+tab rand_group, m
 
 * Only keep those who underwent CPB
-tab rand_group if perfusion_cpb_runs==. & perfusion_cpb_runs~=0
-drop if perfusion_cpb_runs==. & perfusion_cpb_runs~=0
+tab rand_group if perfusion_cpb_runs==. | perfusion_cpb_runs==0
+drop if perfusion_cpb_runs==. | perfusion_cpb_runs==0
 sort rand_dt
+tab rand_group, m
 
 * Remove the withdrawn patients
 drop if withdraw_data_use___1==1 | withdraw_data_use___2==1
@@ -68,6 +69,8 @@ hist adm_to_surg
 qnorm adm_to_surg
 tabstat adm_to_surg, by(rand_group) stats(n mean sd min max q iqr) 
 
+restore
+
 // MV immediately prior to surgery
 tab presurg_vent rand_group, col m
 tab presurg_vent rand_group, col
@@ -107,6 +110,7 @@ foreach i of numlist 1/3 {
 	replace presurg_steroid_any_check=1 if presurg_steroid___`i'==1
 }
 tab presurg_steroid_any_check presurg_steroid___0, m	// these should match
+list record_id site presurg_steroid* if presurg_steroid_any_check==1 & presurg_steroid___0 ==1
 	
 // Afterload steroids within 48 hours prior to surgery
 tab presurg_afterload___0 rand_group, col m
@@ -118,6 +122,7 @@ foreach i of numlist 1/6 {
 	replace presurg_afterload_any_check=1 if presurg_afterload___`i'==1
 }
 tab presurg_afterload_any_check presurg_afterload___0, m	// these should match
+list record_id site presurg_afterload* if presurg_afterload_any_check==1 & presurg_afterload___0==1
 	
 // iNO within 48 hours prior to surgery
 tab presurg_ino rand_group, col m
@@ -126,8 +131,6 @@ tab presurg_ino rand_group, col
 // Sildenafil within 48 hours prior to surgery
 tab presurg_sildenafil rand_group, col m
 tab presurg_sildenafil rand_group, col
-
-restore
 
 // Presurgical POPC
 tab presurg_popc rand_group, col m
@@ -138,7 +141,7 @@ tabstat presurg_popc if presurg_popc~=7, by(rand_group) stats(n mean sd min max 
 // Congenital syndrome
 tab presurg_syndrome rand_group, col m
 tab presurg_syndrome rand_group, col
-foreach v of varlist presurg_syndrome_group___* {
+foreach v of varlist presurg_syndrome_group___2 presurg_syndrome_group___1 presurg_syndrome_group___6 presurg_syndrome_group___5 presurg_syndrome_group___7 presurg_syndrome_group___3 presurg_syndrome_other_gr {
 	tab `v' rand_group, col m
 	tab `v' rand_group, col
 }
@@ -150,51 +153,52 @@ tab hosp_country rand_group, col
 // Surgical risk score - RACHS
 hist surg_rachs
 qnorm surg_rachs
-count if missing(surg_rachs)
 tabstat surg_rachs, by(rand_group) stats(n mean sd min max q iqr)
 tab surg_rachs rand_group, col m
 tab surg_rachs rand_group, col 
 
 // Surgical procedures
+gen surg_proc_any=0
 foreach v of varlist surg_proc_* {
 	tab `v' rand_group, col m
+	replace surg_proc_any=1 if `v'==1
 }
 
 /*** SAP Table 2: Surgical and perioperative characteristics ***/
 
 // Blood prime
-tab perfusion_prime_any rand_group, col chi exact m
-tab perfusion_prime_any rand_group, col chi exact
+tab perfusion_prime_any rand_group, col m
+tab perfusion_prime_any rand_group, col
 prtest perfusion_prime_any, by(rand_group)
 	
 // Duration of cardiopulmonary bypass
 hist perfusion_cpb_total
 qnorm perfusion_cpb_total
 tabstat perfusion_cpb_total, by(rand_group) stats(n mean sd min max q iqr)
-cendif perfusion_cpb_total, by(rand_group)
+qreg perfusion_cpb_total b(1).rand_group
 
 // Duration of cardiopulmonary bypass - categorical
-tab perfusion_cpb_total_gr rand_group, col chi exact m
-tab perfusion_cpb_total_gr rand_group, col chi exact
+tab perfusion_cpb_total_gr rand_group, col m
+tab perfusion_cpb_total_gr rand_group, col
 xi: prtest i.perfusion_cpb_total_gr, by(rand_group)
 
 // Use of cross-clamp
-tab perfusion_xclamp_ny rand_group, col chi exact m
-tab perfusion_xclamp_ny rand_group, col chi exact
-prtest perfusion_xclamp_ny, by(rand_group)
+tab perfusion_xclamp_yn rand_group, col m
+tab perfusion_xclamp_yn rand_group, col
+prtest perfusion_xclamp_yn, by(rand_group)
 
 // Duration of cross-clamp
 preserve
-keep if perfusion_xclamp_ny==0
+keep if perfusion_xclamp_yn==1
 hist perfusion_xclamp_total
 qnorm perfusion_xclamp_total
 tabstat perfusion_xclamp_total, by(rand_group) stats(n mean sd min max q iqr)
-cendif perfusion_xclamp_total, by(rand_group)
+qreg perfusion_xclamp_total b(1).rand_group
 restore
 
 // Number of CPB runs
-tab perfusion_cpb_runs rand_group, col chi exact m
-tab perfusion_cpb_runs rand_group, col chi exact
+tab perfusion_cpb_runs rand_group, col m
+tab perfusion_cpb_runs rand_group, col
 xi i.perfusion_cpb_runs
 gen _Iperfusion_1=1 if perfusion_cpb_runs==1
 replace _Iperfusion_1=0 if perfusion_cpb_runs>1 & ~missing(perfusion_cpb_runs)
@@ -204,8 +208,8 @@ prtest _Iperfusion_3, by(rand_group)
 prtest _Iperfusion_4, by(rand_group)
 
 // Deep hypothermic arrest
-tab perfusion_cool rand_group, col chi exact m
-tab perfusion_cool rand_group, col chi exact
+tab perfusion_cool rand_group, col m
+tab perfusion_cool rand_group, col
 prtest perfusion_cool, by(rand_group)
 
 // Duration of deep hypothermic arrest
@@ -214,73 +218,81 @@ keep if perfusion_cool==1
 hist perfusion_cool_time
 qnorm perfusion_cool_time
 tabstat perfusion_cool_time, by(rand_group) stats(n mean sd min max q iqr)
-cendif perfusion_cool_time, by(rand_group)
+qreg perfusion_cool_time b(1).rand_group
 restore
 
 // Antegrade cerebal perfusion
-tab perfusion_cerebralperf rand_group, col chi exact m
-tab perfusion_cerebralperf rand_group, col chi exact
+tab perfusion_cerebralperf rand_group, col m
+tab perfusion_cerebralperf rand_group, col
 prtest perfusion_cerebralperf, by(rand_group)
 
 // Modified ultrafiltration
-tab perfusion_muf_scuf___1 rand_group, col chi exact m
-tab perfusion_muf_scuf___1 rand_group, col chi exact
+tab perfusion_muf_scuf___1 rand_group, col m
+tab perfusion_muf_scuf___1 rand_group, col
 prtest perfusion_muf_scuf___1, by(rand_group)
 
 // Slow continuous ultrafiltration
-tab perfusion_muf_scuf___2 rand_group, col chi exact m
-tab perfusion_muf_scuf___2 rand_group, col chi exact
+tab perfusion_muf_scuf___2 rand_group, col m
+tab perfusion_muf_scuf___2 rand_group, col
 prtest perfusion_muf_scuf___2, by(rand_group)
 
 // Red blood cells
-hist perfusion_rbc_kg
-qnorm perfusion_rbc_kg
-tabstat perfusion_rbc_kg, by(rand_group) stats(n mean sd min max q iqr)
-cendif perfusion_rbc_kg, by(rand_group)
+tab perfusion_rbc_yn rand_group, m col
+tab perfusion_rbc_yn rand_group, col
+prtest perfusion_rbc_yn, by(rand_group)
+hist perfusion_rbc_kg if perfusion_rbc_yn==1
+qnorm perfusion_rbc_kg if perfusion_rbc_yn==1
+tabstat perfusion_rbc_kg if perfusion_rbc_yn==1, by(rand_group) stats(n mean sd min max q iqr)
+qreg perfusion_rbc_kg b(1).rand_group if perfusion_rbc_yn==1
 
 // Whole blood
-hist perfusion_wb_kg
-qnorm perfusion_wb_kg
-tabstat perfusion_wb_kg, by(rand_group) stats(n mean sd min max q iqr)
-cendif perfusion_wb_kg, by(rand_group)
+tab perfusion_wb_yn rand_group, m col
+tab perfusion_wb_yn rand_group, col
+prtest perfusion_wb_yn, by(rand_group)
+hist perfusion_wb_kg if perfusion_wb_yn==1
+qnorm perfusion_wb_kg if perfusion_wb_yn==1
+tabstat perfusion_wb_kg if perfusion_wb_yn==1, by(rand_group) stats(n mean sd min max q iqr)
+qreg perfusion_wb_kg b(1).rand_group if perfusion_wb_yn==1
 
 // Platelets
-hist perfusion_plt_kg
-qnorm perfusion_plt_kg
-tabstat perfusion_plt_kg, by(rand_group) stats(n mean sd min max q iqr)
-cendif perfusion_plt_kg, by(rand_group)
+tab perfusion_plt_yn rand_group, m col
+tab perfusion_plt_yn rand_group, col
+prtest perfusion_plt_yn, by(rand_group)
+hist perfusion_plt_kg if perfusion_plt_yn==1
+qnorm perfusion_plt_kg if perfusion_plt_yn==1
+tabstat perfusion_plt_kg if perfusion_plt_yn==1, by(rand_group) stats(n mean sd min max q iqr)
+qreg perfusion_plt_kg b(1).rand_group if perfusion_plt_yn==1
 
 // Fresh frozen plasma
-hist perfusion_ffp_kg
-qnorm perfusion_ffp_kg
-tabstat perfusion_ffp_kg, by(rand_group) stats(n mean sd min max q iqr)
-cendif perfusion_ffp_kg, by(rand_group)
+tab perfusion_ffp_yn rand_group, m col
+tab perfusion_ffp_yn rand_group, col
+prtest perfusion_ffp_yn, by(rand_group)
+hist perfusion_ffp_kg if perfusion_ffp_yn==1
+qnorm perfusion_ffp_kg if perfusion_ffp_yn==1
+tabstat perfusion_ffp_kg if perfusion_ffp_yn==1, by(rand_group) stats(n mean sd min max q iqr)
+qreg perfusion_ffp_kg b(1).rand_group if perfusion_ffp_yn==1
 
 // Cryoprecipitate
-hist perfusion_cryo_kg
-qnorm perfusion_cryo_kg
-tabstat perfusion_cryo_kg, by(rand_group) stats(n mean sd min max q iqr)
-cendif perfusion_cryo_kg, by(rand_group)
+tab perfusion_cryo_yn rand_group, m col
+tab perfusion_cryo_yn rand_group, col
+prtest perfusion_cryo_yn, by(rand_group)
+hist perfusion_cryo_kg if perfusion_cryo_yn==1
+qnorm perfusion_cryo_kg if perfusion_cryo_yn==1
+tabstat perfusion_cryo_kg if perfusion_cryo_yn==1, by(rand_group) stats(n mean sd min max q iqr)
+qreg perfusion_cryo_kg b(1).rand_group if perfusion_cryo_yn==1
 
 // IV steroids during surgery
-tab surg_steroids rand_group, col chi exact m
-tab surg_steroids rand_group, col chi exact
+tab surg_steroids rand_group, col m
+tab surg_steroids rand_group, col
 prtest surg_steroids, by(rand_group)
 
 // iNO during surgery
-tab surg_ino rand_group, col chi exact m
-tab surg_ino rand_group, col chi exact
-prtest surg_steroids, by(rand_group)
+tab surg_ino rand_group, col m
+tab surg_ino rand_group, col
+prtest surg_ino, by(rand_group)
 
 preserve
-keep if rand_group==1
-
-// Time from randomisation to the start of NO
-hist rand_to_no
-qnorm rand_to_no
-tabstat rand_to_no, stats(n mean sd min max q iqr) 
-
-// Dose of NO on CPB (ppm)
+keep if rand_group==2
 
 // Time from start of CPB to start of NO
 hist cpb_to_no
@@ -295,7 +307,7 @@ tabstat perfusion_runs_total, stats(n mean sd min max q iqr)
 // Proportion of time spent on CPB with NO
 hist prop_cpb_no
 qnorm prop_cpb_no
-tabstat prop_cpb_no if prop_cpb_no<1, stats(n mean sd min max q iqr) 
+tabstat prop_cpb_no, stats(n mean sd min max q iqr) 
 
 // Change in methaemoglobin level before and after CPB
 tabstat perfusion_methb_pre, stats(n mean sd min max q iqr)
@@ -304,24 +316,28 @@ hist meth_change
 qnorm meth_change
 tabstat meth_change, stats(n mean sd min max q iqr) 
 
+// Change in methaemoglobin level before and after CPB
+tab meth_change_3, m
+
 restore
 
 /*** SAP Table 3: Comparison of primary and secondary outcomes per intention-to-treat analysis ***/
 
 // Randomly shuffle the two groups so that it is not known for the first pass of the analysis
 * Remove this portion of code for the final analysis
-rename rand_group rand_group_o
+/*rename rand_group rand_group_o
 scalar ran=runiform()
 quietly gen rand_group=rand_group_o if ran<0.5
 quietly replace rand_group=2 if rand_group==. & rand_group_o==1
 quietly replace rand_group=1 if rand_group==. & rand_group_o==2
-scalar drop ran
+scalar drop ran*/
 
 // Primary outcome: ventilator-free days
 hist vfd
 qnorm vfd
 tabstat vfd, by(rand_group) stats(n mean sd min max q iqr)
 ranksum vfd, by(rand_group)
+xi: qreg vfd b(1).rand_group
 
 // Primary analysis
 xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
@@ -337,7 +353,9 @@ matrix coeff=e(b)
 mata : st_matrix("coeff_shr", exp(st_matrix("coeff")))
 stcurve, cif at1(rand_group=1) at2(rand_group=2) title("") scheme(s1mono) ///
 		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
-		 ytitle("Probability of extubation") lpattern(dash)
+		 ytitle("Probability of extubation") lpattern(dash) xtick(0(4)28) xlabel(0(4)28) xscale(range (0 28)) ylabel(, grid format(%4.1f))
+* Sensitivity analysis
+xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(2).site b(1).dem_gender
 
 // Subgroup analysis
 * Age group - <6 weeks
@@ -347,6 +365,7 @@ hist vfd
 qnorm vfd
 tabstat vfd, by(rand_group) stats(n mean sd min max q iqr)
 ranksum vfd, by(rand_group)
+xi: qreg vfd b(1).rand_group b(2).rand_pathophys b(2).site
 restore
 
 * Age group - >=6 weeks
@@ -356,6 +375,7 @@ hist vfd
 qnorm vfd
 tabstat vfd, by(rand_group) stats(n mean sd min max q iqr)
 ranksum vfd, by(rand_group)
+xi: qreg vfd b(1).rand_group b(2).rand_pathophys b(2).site
 restore
 
 * Age group - interaction
@@ -367,7 +387,7 @@ xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
 xi: stcrreg b(1).rand_group b(2).rand_pathophys, compete(outcome_cc=2) // needed for the graph
 stcurve, cif at1(rand_group=1) at2(rand_group=2) saving(Figures\\vfd_age1,replace) title("") scheme(s1mono) ///
 		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
-		 ytitle("Probability of extubation") lpattern(dash)
+		 ytitle("Probability of extubation") lpattern(dash) xtick(0(4)28) xlabel(0(4)28) xscale(range (0 28)) ylabel(, grid format(%4.1f))
 restore
 preserve
 keep if rand_age==2
@@ -375,7 +395,7 @@ xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
 xi: stcrreg b(1).rand_group b(2).rand_pathophys, compete(outcome_cc=2) // needed for the graph
 stcurve, cif at1(rand_group=1) at2(rand_group=2) saving(Figures\\vfd_age2,replace) title("") scheme(s1mono) ///
 		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
-		 ytitle("Probability of extubation") lpattern(dash)
+		 ytitle("Probability of extubation") lpattern(dash) xtick(0(4)28) xlabel(0(4)28) xscale(range (0 28)) ylabel(, grid format(%4.1f))
 restore
 
 * Physiology - univentricular
@@ -385,6 +405,7 @@ hist vfd
 qnorm vfd
 tabstat vfd, by(rand_group) stats(n mean sd min max q iqr)
 ranksum vfd, by(rand_group)
+xi: qreg vfd b(1).rand_group b(2).rand_age b(2).site
 restore
 
 * Physiology - biventricular
@@ -394,6 +415,7 @@ hist vfd
 qnorm vfd
 tabstat vfd, by(rand_group) stats(n mean sd min max q iqr)
 ranksum vfd, by(rand_group)
+xi: qreg vfd b(1).rand_group b(2).rand_age b(2).site
 restore
 
 * Physiology - interaction
@@ -405,7 +427,7 @@ xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
 xi: stcrreg b(1).rand_group b(2).rand_age, compete(outcome_cc=2) // needed for the graph
 stcurve, cif at1(rand_group=1) at2(rand_group=2) saving(Figures\\vfd_phys1,replace) title("") scheme(s1mono) ///
 		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
-		 ytitle("Probability of extubation") lpattern(dash)
+		 ytitle("Probability of extubation") lpattern(dash) xtick(0(4)28) xlabel(0(4)28) xscale(range (0 28)) ylabel(, grid format(%4.1f))
 restore
 preserve
 keep if rand_pathophys==2
@@ -413,17 +435,98 @@ xi: qreg vfd b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
 xi: stcrreg b(1).rand_group b(2).rand_age, compete(outcome_cc=2) // needed for the graph
 stcurve, cif at1(rand_group=1) at2(rand_group=2) saving(Figures\\vfd_phys2,replace) title("") scheme(s1mono) ///
 		 legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
-		 ytitle("Probability of extubation") lpattern(dash)
+		 ytitle("Probability of extubation") lpattern(dash) xtick(0(4)28) xlabel(0(4)28) xscale(range (0 28)) ylabel(, grid format(%4.1f))
 restore
 
 /* Secondary outcomes */
 
-// Create variable lists for remaining outcome variables
-local outcomes_cont "mment_vent_dur dur_chestopen mment_vent_nohrs mment_vent_rrthrs picu_pelod2_* picu_troponin* picu_creatinine*"
-local outcomes_binary "picu_lcos_any ecls_48hr death_28day comp_outcome mment_vent_no mment_rrt_pd_crrt ae_any ae_related_any"
-local outcomes_surv "los_picu los_hosp"
+// Analyse non-normally distributed outcomes
+local outcomes_cont "mment_vent_dur dur_chestopen mment_vent_nohrs mment_vent_rrthrs picu_troponin*"
+foreach v of varlist `outcomes_cont' {
 
-// Analyse continuous outcomes
+	* Descriptive statistics
+	hist `v'
+	qnorm `v'
+	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+		
+	* Primary analysis and sensitivity analysis
+	capture noisily xi: qreg `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys b(2).site
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
+	capture noisily xi: qreg `v' b(1).rand_group b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(2).site b(1).dem_gender
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
+	
+	* Subgroup analysis: age group <6 weeks
+	preserve
+	keep if rand_age==1
+	hist `v'
+	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	capture noisily xi: qreg `v' b(1).rand_group b(2).rand_pathophys b(2).site
+	restore
+
+	* Subgroup analysis: age group >=6 weeks
+	preserve
+	keep if rand_age==2
+	hist `v'
+	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	capture noisily xi: qreg `v' b(1).rand_group b(2).rand_pathophys b(2).site
+	restore
+	
+	* Subgroup analysis: age group - interaction
+	capture noisily xi: qreg `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys b(2).site
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
+	capture noisily xi: qreg `v' b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(2).site b(1).dem_gender
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
+	
+	* Physiology - univentricular
+	preserve
+	keep if rand_pathophys==1
+	hist `v'
+	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	capture noisily xi: qreg `v' b(1).rand_group b(2).rand_age b(2).site
+	restore
+
+	* Physiology - biventricular
+	preserve
+	keep if rand_pathophys==2
+	hist `v'
+	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	capture noisily xi: qreg `v' b(1).rand_group b(2).rand_age b(2).site
+	restore
+
+	* Physiology - interaction
+	xi: meglm `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
+	capture noisily xi: qreg `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(2).site b(1).dem_gender
+	* Test assumptions
+	predict pr, xb
+	predict r, residuals
+	scatter r pr
+	drop pr r
+
+}
+
+// Analyse normally-distributed continuous outcomes
+local outcomes_cont "picu_pelod2_* picu_creatinine*"
 foreach v of varlist `outcomes_cont' {
 
 	* Descriptive statistics
@@ -450,6 +553,7 @@ foreach v of varlist `outcomes_cont' {
 	keep if rand_age==1
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	xi: meglm `v' b(1).rand_group b(2).rand_pathophys || site:
 	restore
 
 	* Subgroup analysis: age group >=6 weeks
@@ -457,6 +561,7 @@ foreach v of varlist `outcomes_cont' {
 	keep if rand_age==2
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	xi: meglm `v' b(1).rand_group b(2).rand_pathophys || site:
 	restore
 	
 	* Subgroup analysis: age group - interaction
@@ -478,6 +583,7 @@ foreach v of varlist `outcomes_cont' {
 	keep if rand_pathophys==1
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	xi: meglm `v' b(1).rand_group b(2).rand_age || site:
 	restore
 
 	* Physiology - biventricular
@@ -485,16 +591,17 @@ foreach v of varlist `outcomes_cont' {
 	keep if rand_pathophys==2
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	xi: meglm `v' b(1).rand_group b(2).rand_age || site:
 	restore
 
 	* Physiology - interaction
-	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:
+	xi: meglm `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:
 	* Test assumptions
 	predict pr, xb
 	predict r, residuals
 	scatter r pr
 	drop pr r
-	xi: meglm picu_lcos_any b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:
+	xi: meglm `v' b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:
 	* Test assumptions
 	predict pr, xb
 	predict r, residuals
@@ -504,6 +611,7 @@ foreach v of varlist `outcomes_cont' {
 }
 
 // Analyse binary outcomes
+local outcomes_binary "picu_lcos_any ecls_48hr death_28day comp_outcome mment_vent_no mment_rrt_pd_crrt picu_aki0_yn picu_aki24_yn picu_aki48_yn ae_any ae_related_any"
 foreach v of varlist `outcomes_binary' {
 
 	* Descriptive statistics
@@ -531,6 +639,7 @@ foreach v of varlist `outcomes_binary' {
 	keep if rand_age==1
 	tab `v' rand_group, m col
 	tab `v' rand_group, col
+	xi: melogit `v' b(1).rand_group b(2).rand_pathophys || site:, or
 	restore
 
 	* Subgroup analysis: age group >=6 weeks
@@ -538,6 +647,7 @@ foreach v of varlist `outcomes_binary' {
 	keep if rand_age==2
 	tab `v' rand_group, m col
 	tab `v' rand_group, col
+	xi: melogit `v' b(1).rand_group b(2).rand_pathophys || site:, or
 	restore
 	
 	* Subgroup analysis: age group - interaction
@@ -561,6 +671,7 @@ foreach v of varlist `outcomes_binary' {
 	keep if rand_pathophys==1
 	tab `v' rand_group, m col
 	tab `v' rand_group, col
+	xi: melogit `v' b(1).rand_group b(2).rand_age || site:, or
 	restore
 
 	* Physiology - biventricular
@@ -568,6 +679,7 @@ foreach v of varlist `outcomes_binary' {
 	keep if rand_pathophys==2
 	tab `v' rand_group, m col
 	tab `v' rand_group, col
+	xi: melogit `v' b(1).rand_group b(2).rand_age || site:, or
 	restore
 
 	* Physiology - interaction
@@ -589,6 +701,7 @@ foreach v of varlist `outcomes_binary' {
 }
 
 // Analyse survival outcomes
+local outcomes_surv "los_picu los_hosp"
 foreach v of varlist `outcomes_surv' {
 
 	* Descriptive statistics
@@ -618,6 +731,7 @@ foreach v of varlist `outcomes_surv' {
 	keep if rand_age==1
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	xi: mestreg b(2).rand_group b(2).rand_pathophys || site:, distribution(weibull)
 	restore
 
 	* Subgroup analysis: age group >=6 weeks
@@ -625,17 +739,18 @@ foreach v of varlist `outcomes_surv' {
 	keep if rand_age==2
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	xi: mestreg b(2).rand_group b(2).rand_pathophys || site:, distribution(weibull)
 	restore
 	
 	* Subgroup analysis: age group - interaction
-	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age || site:, distribution(weibull)
+	xi: mestreg b(1).rand_group##b(2).rand_age b(2).rand_pathophys || site:, distribution(weibull)
 	* Test assumptions
 	predict s, surv
 	gen lnls=log(-1*log(s))
 	gen log_`v'=log(`v')
 	scatter lnls log_`v'
 	drop s lnls log_`v'
-	xi: mestreg b(1).rand_group##b(2).rand_pathophys b(2).rand_age perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, distribution(weibull)
+	xi: mestreg b(1).rand_group##b(2).rand_age b(2).rand_pathophys perfusion_cpb_total surg_rachs perfusion_prime_any b(1).dem_gender || site:, distribution(weibull)
 	* Test assumptions
 	predict s, surv
 	gen lnls=log(-1*log(s))
@@ -648,6 +763,7 @@ foreach v of varlist `outcomes_surv' {
 	keep if rand_pathophys==1
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	xi: mestreg b(1).rand_group b(2).rand_age || site:, distribution(weibull)
 	restore
 
 	* Physiology - biventricular
@@ -655,6 +771,7 @@ foreach v of varlist `outcomes_surv' {
 	keep if rand_pathophys==2
 	hist `v'
 	tabstat `v', by(rand_group) stats(n mean sd min max q iqr)
+	xi: mestreg b(1).rand_group b(2).rand_age || site:, distribution(weibull)
 	restore
 
 	* Physiology - interaction
@@ -674,6 +791,16 @@ foreach v of varlist `outcomes_surv' {
 	drop s lnls log_`v'
 
 }
+
+* Generate Kaplan-Meier curves
+stset los_picu, failure(los_picu_event)
+sts graph, by(rand_group) xtick(0(4)28) xlabel(0(4)28) xscale(range (0 28)) title("") scheme(s1mono) ///
+		legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
+		 ytitle("Probability of remaining in ICU") xtick(0(4)28) xlabel(0(4)28) xscale(range (0 28)) ytick(0(0.2)1) ylabel(0(0.2)1, format(%4.1f))
+stset los_hosp, failure(los_hosp_event)
+sts graph, by(rand_group) xtick(0(4)28) xlabel(0(4)28) xscale(range (0 28)) title("") scheme(s1mono) ///
+		legend(lab(1 "Standard Care") lab(2 "Nitric Oxide")) xtitle("Days since start of cardiopulmonary bypass") ///
+		 ytitle("Probability of remaining in hospital") xtick(0(4)28) xlabel(0(4)28) xscale(range (0 28)) ytick(0(0.2)1) ylabel(0(0.2)1, format(%4.1f))
 
 // Analyse AKI timepoints
 local aki_timepoints "picu_aki0 picu_aki24 picu_aki48"
@@ -778,6 +905,8 @@ stcurve, cif at1(rand_group=1) at2(rand_group=2) title("") scheme(s1mono) ///
 /*** Supplementary Material: Adverse Events ***/
 preserve
 use "OutputData\ae_long0.dta", clear
+tab ae_term_gr rand_group, m col
+tab ae_term_gr rand_group, col
 tab ae_druga rand_group, m col
 tab ae_druga rand_group, col
 restore
@@ -785,6 +914,14 @@ restore
 // Any AE/SAE
 tab ae_any rand_group, m col
 tab ae_any rand_group, col
+
+/*** Supplementary Material: Protocol Deviations ***/
+tab 
+preserve
+use "OutputData\pd_long0.dta", clear
+tab pd_d1_details rand_group, m col
+tab pd_d1_algorith rand_group if pd_d1_details==2, m col
+restore
 
 /*** SAP: Figure 3 ***/
 * Composite figure of: a) proportion of patients with LCOS, 

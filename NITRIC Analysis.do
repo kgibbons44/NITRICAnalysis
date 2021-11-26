@@ -3,16 +3,18 @@
 /**** Date initialised: 12/05/2020 ****/
 /**** Purpose: Executable file to run all NITRIC related anlalyses ****/
 
-log using "210621_NITRIC Analysis.txt", text replace
+log using "211117_NITRIC Analysis.txt", text replace
 
 /* Run the do file from REDCap for the screening log */
-do "NITRICOXIDEOnBypassS-AllDataIdentifiableA_STATA_2021-06-21_0652.do"
+do "NITRICOXIDEOnBypassS_STATA_2021-11-01_1531.do"
 rename redcap_id record_id
+replace record_id="" if record_id=="4444" | record_id=="5555" | record_id=="9999"
+drop if record_id=="7894-1"
 sort record_id
 save "NITRIC_Screening", replace
 
 /* Run the do file from REDCap */
-do "NITRICOXIDEOnBypassR-AllDataIdentifiableD_STATA_2021-06-21_0653.do"
+do "NITRICOXIDEOnBypassR-AllDataIdentifiableD_STATA_2021-11-01_1707.do"
 
 /* Run the data transformation file */
 do "NITRIC Data Transformation.do"

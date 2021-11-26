@@ -3,7 +3,7 @@
 /**** Calculate at baseline, 24 hours, 48 hours ****/
 
 // Set values of 4444, 5555, 9999 to missing for relevant variables 
-mvdecode *_lactate* picu_lact24 picu_lactatemax48 *_creatinine* picu_wccmax48 picu_wccmin48 picu_plateletmin48 mment_platelets48 rand_age_days, mv(9999=.\ 4444=.\ 5555=.)
+mvdecode *_lactate* picu_lact24 picu_lactatemax48 *_creatinine* picu_wccmax48 picu_wccmin48 picu_plateletmin48 mment_platelets48 rand_age_days, mv(9999=.\ 4444=.\ 5555=.) 
 
 // Determine how far prior to the PICU admission randomisation occurred
 gen rand_to_post_picuadm=hours(picu_adm-rand_dt)
@@ -38,7 +38,7 @@ format post12msurg_dt %tc
 // Define the 24 hour post-PICU admission date and time
 gen post24hrpicu_dt=picu_adm+24*60*60*1000
 format post24hrpicu_dt %tc
-// Define the 24 hour post-PICU admission date and time
+// Define the 48 hour post-PICU admission date and time
 gen post48hrpicu_dt=picu_adm+48*60*60*1000
 format post48hrpicu_dt %tc
 
@@ -50,6 +50,7 @@ foreach i of numlist 1/5 {
 	replace mment_vent48=1 if ( (mment_vent_start`i'<post48hrpicu_dt) & (mment_vent_stop`i'>post48hrpicu_dt) )& ~missing(mment_vent_start`i') & ~missing(mment_vent_stop`i')
 			
 }
+
 
 /****** PELOD-2 ******/
 

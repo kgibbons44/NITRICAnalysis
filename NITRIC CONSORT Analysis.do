@@ -22,6 +22,7 @@ foreach i of numlist 1/4 {
 }
 tabstat exclusion_5, stats(n mean sd min max q iqr)
 gen exclusion5_met=1 if exclusion_5>=15 & exclusion_5~=.
+replace exclusion_met=1 if exclusion5_met==1
 tab exclusion5_met, m
 replace exclusion5_met=1 if exclusion5_met==1
 foreach i of numlist 6/8 {
@@ -30,7 +31,6 @@ foreach i of numlist 6/8 {
 }
 tab exclusion_other, m
 tab exclusion_other_comment
-replace exclusion_met=1 if exclusion_other==4
 tab exclusion_met, m
 
 // Number of infants who were eligible
@@ -51,7 +51,7 @@ foreach i of numlist 16/28 {
 }
 tab exclusion_other
 * Collapse exclusion criteria into pre-defined categories
-gen not_enrol_declined=1 if scn_non_consent_reason___1==1
+gen not_enrol_declined=1 if consent_outcome==1
 gen not_enrol_notapproached=1 if scn_non_consent_reason___4==1 | scn_non_consent_reason___5==1 | scn_non_consent_reason___6==1 | scn_non_consent_reason___7==1 | ///
 								 scn_non_consent_reason___8==1 | scn_non_consent_reason___9==1 | scn_non_consent_reason___10==1 | scn_non_consent_reason___11==1 | ///
 								 scn_non_consent_reason___18==1 | scn_non_consent_reason___19==1 | scn_non_consent_reason___20==1 | scn_non_consent_reason___21==1
@@ -60,10 +60,12 @@ gen not_enrol_resourcing=1 if scn_non_consent_reason___2==1 | scn_non_consent_re
 							  scn_non_consent_reason___24==1 | exclusion_other==2 | exclusion_other==3
 gen not_enrol_covid19=1 if scn_non_consent_reason___27==1 | scn_non_consent_reason___28==1
 gen not_enrol_other=1 if scn_non_consent_reason___3==1 | scn_non_consent_reason___12==1 | scn_non_consent_reason___13==1 | scn_non_consent_reason___14==1 | ///
-						 scn_non_consent_reason___16==1 | scn_non_consent_reason___26==1 | scn_non_consent_reason___25==1 | scn_non_consent_reason___0==1 | exclusion_other==4
+						 scn_non_consent_reason___16==1 | scn_non_consent_reason___26==1 | scn_non_consent_reason___25==1 | scn_non_consent_reason___0==1 | exclusion_other==4 | exclusion_other==6
 foreach v of varlist not_enrol_* {
 	tab `v'
 }
+count if not_enrol_declined==1 | not_enrol_notapproached==1 | not_enrol_nocpb==1 | not_enrol_resourcing==1 | not_enrol_covid19==1 | not_enrol_other==1
+count if not_enrol_declined==1 | not_enrol_notapproached==1 | not_enrol_nocpb==1 | not_enrol_resourcing==1 | not_enrol_covid19==1 | not_enrol_other==1 | inclusion_didnt_meet==1 | exclusion_met==1
 
 // Consent outcome
 tab consent_attempt, m
